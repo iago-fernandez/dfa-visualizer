@@ -1,0 +1,91 @@
+# DFA Configuration: Complex Email Validator
+# Description: Validates the format name@string1.string2 based on specific constraints.
+# Logic:
+#  1. name: Non-empty, alphanumeric or underscore. Must contain at least one digit or underscore.
+#  2. string1: Alphanumeric. Must contain at least 2 letters and at most 2 digits.
+#  3. string2: Restricted to exact matches for "fr", "fri", or "sat".
+
+# Alphabet includes lowercase letters, digits, underscore, at-symbol, and dot.
+ALPHABET: a-z 0-9 _ @ .
+
+# State definitions
+# q_name_*: States for parsing the name part.
+# q_s1_*: States for parsing string1, tracking Letter (L) and Digit (D) counts.
+# q_dom_*: States for parsing the specific domain endings.
+STATES: q_start q_name_letters q_name_valid q_s1_0L0D q_s1_1L0D q_s1_2L0D q_s1_0L1D q_s1_1L1D q_s1_2L1D q_s1_0L2D q_s1_1L2D q_s1_2L2D q_dom_start q_dom_f q_dom_fr q_dom_fri q_dom_s q_dom_sa q_dom_sat
+
+INITIAL_STATE: q_start
+
+# Accepted states correspond to valid endings: fr, fri, sat
+FINAL_STATES: q_dom_fr q_dom_fri q_dom_sat
+
+TRANSITIONS:
+
+# Phase 1: Name Validation
+# We must ensure the name is not purely alphabetic.
+# q_start transitions to q_name_letters if input is a letter (invalid if it ends here).
+# q_start transitions to q_name_valid if input is digit or underscore (valid condition met).
+
+q_start         a-z     q_name_letters
+q_start         0-9     q_name_valid
+q_start         _       q_name_valid
+
+q_name_letters  a-z     q_name_letters
+q_name_letters  0-9     q_name_valid
+q_name_letters  _       q_name_valid
+
+# Once the name is valid (contains digit/_), it stays valid until the @ symbol.
+q_name_valid    a-z     q_name_valid
+q_name_valid    0-9     q_name_valid
+q_name_valid    _       q_name_valid
+q_name_valid    @       q_s1_0L0D
+
+# Phase 2: String1 Validation
+# Requires >= 2 Letters and <= 2 Digits.
+# States are named q_s1_XLYD where X is letter count (capped at 2) and Y is digit count.
+
+# Row 0 Digits
+q_s1_0L0D       a-z     q_s1_1L0D
+q_s1_0L0D       0-9     q_s1_0L1D
+
+q_s1_1L0D       a-z     q_s1_2L0D
+q_s1_1L0D       0-9     q_s1_1L1D
+
+# Once we have 2+ letters (2L), we stay in 2L states for more letters.
+q_s1_2L0D       a-z     q_s1_2L0D
+q_s1_2L0D       0-9     q_s1_2L1D
+q_s1_2L0D       .       q_dom_start
+
+# Row 1 Digit
+q_s1_0L1D       a-z     q_s1_1L1D
+q_s1_0L1D       0-9     q_s1_0L2D
+
+q_s1_1L1D       a-z     q_s1_2L1D
+q_s1_1L1D       0-9     q_s1_1L2D
+
+q_s1_2L1D       a-z     q_s1_2L1D
+q_s1_2L1D       0-9     q_s1_2L2D
+q_s1_2L1D       .       q_dom_start
+
+# Row 2 Digits
+# Note: No transitions for 0-9 here. Receiving a 3rd digit causes implicit rejection.
+q_s1_0L2D       a-z     q_s1_1L2D
+
+q_s1_1L2D       a-z     q_s1_2L2D
+
+q_s1_2L2D       a-z     q_s1_2L2D
+q_s1_2L2D       .       q_dom_start
+
+# Phase 3: String2 (Domain) Validation
+# Only strict paths for 'fr', 'fri', 'sat' are defined.
+
+q_dom_start     f       q_dom_f
+q_dom_start     s       q_dom_s
+
+# Paths for fr and fri
+q_dom_f         r       q_dom_fr
+q_dom_fr        i       q_dom_fri
+
+# Path for sat
+q_dom_s         a       q_dom_sa
+q_dom_sa        t       q_dom_sat

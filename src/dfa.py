@@ -1,13 +1,14 @@
 import graphviz
-from typing import Set, Dict, Tuple, List, Optional
+from typing import Optional
+
 
 class DFA:
     def __init__(self,
-                 states: Set[str],
-                 alphabet: Set[str],
-                 transitions: Dict[Tuple[str, str], str],
+                 states: set[str],
+                 alphabet: set[str],
+                 transitions: dict[tuple[str, str], str],
                  initial_state: str,
-                 final_states: Set[str]):
+                 final_states: set[str]):
         """
         Initialize the Deterministic Finite Automaton components.
 
@@ -23,7 +24,7 @@ class DFA:
         self.initial_state = initial_state
         self.final_states = final_states
 
-    def validate_string(self, input_string: str) -> Tuple[bool, List[str], List[Tuple[str, str, str]]]:
+    def validate_string(self, input_string: str) -> tuple[bool, list[str], list[tuple[str, str, str]]]:
         """
         Validates the input string and returns the acceptance status along with the execution path.
 
@@ -32,7 +33,7 @@ class DFA:
         """
         # Ensure strict alphabet validation
         if not all(char in self.alphabet for char in input_string):
-            raise ValueError("Input string contains symbols not present in the alphabet.")
+            raise ValueError("Input string contains symbols not present in the alphabet")
 
         current_state = self.initial_state
         path = [current_state]
@@ -53,8 +54,8 @@ class DFA:
 
     def visualize(self,
                   filename: str = "dfa_output",
-                  path: Optional[List[str]] = None,
-                  edge_path: Optional[List[Tuple[str, str, str]]] = None) -> str:
+                  path: Optional[list[str]] = None,
+                  edge_path: Optional[list[tuple[str, str, str]]] = None) -> str:
         """
         Generates a Graphviz representation of the DFA.
         Highlights the execution path if provided.
@@ -67,30 +68,57 @@ class DFA:
         dot = graphviz.Digraph(format='png', engine='dot')
         dot.attr(rankdir='LR')
 
-        # Invisible start node to point to the initial state
+        # Style constants for visualization
+        highlight_color = 'darkgreen'
+        default_color = 'black'
+
+        # Determine if we are visualizing a trace or just the structure
+        is_trace_active = path is not None
+
+        # Start Arrow: only highlight if we are tracing an input, otherwise keep it standard black
+        start_color = highlight_color if is_trace_active else default_color
+        start_penwidth = '2.0' if is_trace_active else '1.0'
+
         dot.node('start', label='', shape='none', width='0', height='0')
-        dot.edge('start', self.initial_state)
+        dot.edge('start', self.initial_state, color=start_color, penwidth=start_penwidth)
 
         visited_nodes = set(path) if path else set()
         visited_edges = set(edge_path) if edge_path else set()
 
-        for state in self.states:
+        # States
+        for state in sorted(list(self.states)):
             shape = 'doublecircle' if state in self.final_states else 'circle'
 
-            # Highlight logic: Forestgreen for active path, black for standard
-            color = 'forestgreen' if state in visited_nodes else 'black'
-            penwidth = '2.0' if state in visited_nodes else '1.0'
+            # Determine styling based on visitation
+            if state in visited_nodes:
+                color = highlight_color
+                font_color = highlight_color
+                penwidth = '2.0'
+            else:
+                color = default_color
+                font_color = default_color
+                penwidth = '1.0'
 
-            dot.node(state, shape=shape, color=color, penwidth=penwidth)
+            dot.node(state, shape=shape, color=color, fontcolor=font_color, penwidth=penwidth)
 
+        # Transitions
         for (src, symbol), dest in self.transitions.items():
-            # Check if specific transition was used in the trace
+            # Check if this specific transition was traversed
             is_used = (src, dest, symbol) in visited_edges
 
-            color = 'forestgreen' if is_used else 'black'
-            style = 'bold' if is_used else 'solid'
+            if is_used:
+                edge_color = highlight_color
+                label_font_color = highlight_color
+                edge_penwidth = '2.0'
+            else:
+                edge_color = default_color
+                label_font_color = default_color
+                edge_penwidth = '1.0'
 
-            dot.edge(src, dest, label=symbol, color=color, style=style)
+            dot.edge(src, dest, label=symbol,
+                     color=edge_color,
+                     fontcolor=label_font_color,
+                     penwidth=edge_penwidth)
 
-        # Renders the graph to a file and returns the file path
+        # Render and cleanup source file
         return dot.render(filename, cleanup=True)
