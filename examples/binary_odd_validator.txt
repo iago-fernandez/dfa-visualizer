@@ -1,0 +1,42 @@
+# ==========================================
+# DFA CONFIGURATION: BINARY ODD VALIDATOR
+# ==========================================
+# Description:
+#   This DFA validates whether a binary string represents an odd number.
+#   Logic: It accepts any string ending in '1'.
+#
+#   - State q0: Represents strings ending in '0' (Even) or empty start.
+#   - State q1: Represents strings ending in '1' (Odd).
+# ==========================================
+
+# 1. Alphabet Definition
+#    Allowed symbols: 0 and 1
+ALPHABET: 0-1
+
+# 2. State Definitions
+#    q0: Initial state (assume even/start)
+#    q1: Target state (odd)
+STATES: q0 q1
+
+# 3. Initial State
+INITIAL_STATE: q0
+
+# 4. Final States
+#    Strings ending here are accepted (Odd numbers)
+FINAL_STATES: q1
+
+# 5. Transition Rules
+#    Format: source_state input_symbol target_state
+TRANSITIONS:
+
+# -- From State q0 (Currently Even/Start) --
+# If input is 0, it stays Even (ends in 0)
+q0 0 q0
+# If input is 1, it becomes Odd (ends in 1)
+q0 1 q1
+
+# -- From State q1 (Currently Odd) --
+# If input is 0, it becomes Even (ends in 0)
+q1 0 q0
+# If input is 1, it stays Odd (ends in 1)
+q1 1 q1
