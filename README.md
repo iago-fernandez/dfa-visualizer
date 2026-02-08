@@ -6,7 +6,7 @@ Unlike standard educational tools, this engine prioritizes **O(1) runtime execut
 
 [![Status](https://img.shields.io/badge/status-stable-green?style=flat-square)](https://github.com/iago-fernandez/dfa-visualizer/releases)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square)](requirements.txt)
-[![License](https://img.shields.io/badge/license-MIT-gray?style=flat-square)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-orange?style=flat-square)](LICENSE)
 
 ## Core Engineering
 
