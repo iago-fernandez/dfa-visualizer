@@ -1,0 +1,37 @@
+# DFA Configuration: Modulo 3 Calculator
+# Description: Accepts binary numbers that are divisible by 3 (decimal value % 3 == 0).
+# Logic:
+#   We track the remainder of the number processed so far.
+#   State q_rem0: Current remainder is 0.
+#   State q_rem1: Current remainder is 1.
+#   State q_rem2: Current remainder is 2.
+#   Mathematics:
+#     - If input is '0': new_rem = (2 * old_rem) % 3
+#     - If input is '1': new_rem = (2 * old_rem + 1) % 3
+
+ALPHABET: 0-1
+
+STATES: q_rem0 q_rem1 q_rem2
+
+INITIAL_STATE: q_rem0
+FINAL_STATES: q_rem0
+
+TRANSITIONS:
+
+# From Remainder 0
+# 0 -> (2*0)%3 = 0
+# 1 -> (2*0+1)%3 = 1
+q_rem0 0 q_rem0
+q_rem0 1 q_rem1
+
+# From Remainder 1
+# 0 -> (2*1)%3 = 2
+# 1 -> (2*1+1)%3 = 0
+q_rem1 0 q_rem2
+q_rem1 1 q_rem0
+
+# From Remainder 2
+# 0 -> (2*2)%3 = 1
+# 1 -> (2*2+1)%3 = 2
+q_rem2 0 q_rem1
+q_rem2 1 q_rem2
