@@ -1,58 +1,37 @@
 import os
-from typing import Any
-
+from typing import Any, Dict
 from .dfa import DFA
 from .utils import expand_alphabet_range
 
 
 def parse_dfa_file(filepath: str) -> DFA:
     """
-    Parses a formatted text file to construct a DFA instance.
-
-    File Format Structure (see examples/ for further details and use cases):
-    ----------------------
-    # Comments are allowed
-    ALPHABET: 0-1
-    STATES: q0 q1 q2
-    INITIAL_STATE: q0
-    FINAL_STATES: q2
-    TRANSITIONS:
-    q0 0 q0
-    q0 1 q1
-    ...
-    ----------------------
-
-    :param filepath: Path to the DFA configuration file.
-    :return: A configured DFA instance.
-    :raises ValueError: If the file format is invalid or missing sections.
+    Parses a DSL configuration file to instantiate a DFA.
     """
     if not os.path.exists(filepath):
-        raise FileNotFoundError(f"Configuration file not found: {filepath}")
+        raise FileNotFoundError(f"Config file not found: {filepath}")
 
-    # Explicitly type the dictionary to allow mixed value types (sets, strings, dicts)
-    config: dict[str, Any] = {
-        "alphabet": None,
-        "states": None,
+    config: Dict[str, Any] = {
+        "alphabet": set(),
+        "states": set(),
         "initial_state": None,
-        "final_states": None,
+        "final_states": set(),
         "transitions": {}
     }
 
     current_section = None
 
     with open(filepath, 'r', encoding='utf-8') as f:
-        for line_num, line in enumerate(f, 1):
+        for line_idx, line in enumerate(f, 1):
             line = line.strip()
-
-            # Skip empty lines and comments
+            
             if not line or line.startswith('#'):
                 continue
 
-            # Detect sections
+            # Parse section headers
             if ':' in line and current_section != "TRANSITIONS":
-                key, value = line.split(':', 1)
-                key = key.strip().upper()
-                value = value.strip()
+                key, value = [x.strip() for x in line.split(':', 1)]
+                key = key.upper()
 
                 if key == "ALPHABET":
                     config["alphabet"] = expand_alphabet_range(value)
@@ -66,50 +45,24 @@ def parse_dfa_file(filepath: str) -> DFA:
                     current_section = "TRANSITIONS"
                 continue
 
-            # Process transitions section
+            # Parse transition logic
             if current_section == "TRANSITIONS":
                 parts = line.split()
                 if len(parts) != 3:
-                    raise ValueError(f"Line {line_num}: Invalid transition format. Expected 'src input dest'")
+                    raise ValueError(f"Line {line_idx}: Malformed transition. Expected 'src input dest'")
 
-                source, input_symbol, destination = parts
+                src, input_def, dest = parts
 
-                # Expand input ranges in transitions (e.g., 'q0 a-z q1')
                 try:
-                    symbols = expand_alphabet_range(input_symbol)
+                    symbols = expand_alphabet_range(input_def)
                 except ValueError as e:
-                    raise ValueError(f"Line {line_num}: {e}")
+                    raise ValueError(f"Line {line_idx}: {e}")
 
                 for sym in symbols:
-                    config["transitions"][(source, sym)] = destination
+                    config["transitions"][(src, sym)] = dest
 
-    # Validation
-    if not config["alphabet"]:
-        raise ValueError("Missing ALPHABET definition")
-    if not config["states"]:
-        raise ValueError("Missing STATES definition")
-    if not config["initial_state"]:
-        raise ValueError("Missing INITIAL_STATE definition")
-    if not config["final_states"]:
-        # It is technically possible to have no final states
-        config["final_states"] = set()
-
-    # Validate state existence
-    if config["initial_state"] not in config["states"]:
-        raise ValueError(f"Initial state '{config['initial_state']}' is not in defined states")
-
-    invalid_final = config["final_states"] - config["states"]
-    if invalid_final:
-        raise ValueError(f"Final states {invalid_final} are not in defined states")
-
-    # Validate transition symbols
-    for (source, sym), destination in config["transitions"].items():
-        if sym not in config["alphabet"]:
-            raise ValueError(f"Transition symbol '{sym}' not in alphabet")
-        if source not in config["states"]:
-            raise ValueError(f"Transition source '{source}' invalid")
-        if destination not in config["states"]:
-            raise ValueError(f"Transition destination '{destination}' invalid")
+    # Validation pipeline
+    _validate_configuration(config)
 
     return DFA(
         states=config["states"],
@@ -118,3 +71,28 @@ def parse_dfa_file(filepath: str) -> DFA:
         initial_state=config["initial_state"],
         final_states=config["final_states"]
     )
+
+
+def _validate_configuration(config: Dict[str, Any]) -> None:
+    """
+    Internal validator for DFA logical consistency.
+    """
+    required_keys = ["alphabet", "states", "initial_state"]
+    for key in required_keys:
+        if not config.get(key):
+            raise ValueError(f"Missing required definition: {key.upper()}")
+
+    if config["initial_state"] not in config["states"]:
+        raise ValueError(f"Initial state '{config['initial_state']}' is undefined")
+
+    invalid_finals = config["final_states"] - config["states"]
+    if invalid_finals:
+        raise ValueError(f"Final states undefined: {invalid_finals}")
+
+    for (src, sym), dest in config["transitions"].items():
+        if sym not in config["alphabet"]:
+            raise ValueError(f"Transition symbol '{sym}' not in alphabet")
+        if src not in config["states"]:
+            raise ValueError(f"Transition source '{src}' undefined")
+        if dest not in config["states"]:
+            raise ValueError(f"Transition destination '{dest}' undefined")
