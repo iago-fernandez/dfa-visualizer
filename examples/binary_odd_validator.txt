@@ -2,29 +2,21 @@
 # Description: Validates whether a binary string represents an odd number.
 # Logic: Accepts any string ending in the digit '1'.
 
-# Alphabet consists of binary digits 0 and 1.
 ALPHABET: 0-1
 
-# State definitions
-# q0: Represents strings ending in '0' (Even) or the initial empty state.
-# q1: Represents strings ending in '1' (Odd).
-STATES: q0 q1
+STATES: q_even q_odd
 
-INITIAL_STATE: q0
-
-# Strings ending in q1 are accepted as odd numbers.
-FINAL_STATES: q1
+INITIAL_STATE: q_even
+FINAL_STATES: q_odd
 
 TRANSITIONS:
 
-# Transitions from q0 (Even/Start)
-# Input '0' maintains the even state.
-# Input '1' switches to the odd state.
-q0 0 q0
-q0 1 q1
+# State q_even (Start)
+# Represents having read an even number (ending in 0) or empty string.
+q_even 0 q_even
+q_even 1 q_odd
 
-# Transitions from q1 (Odd)
-# Input '0' switches to the even state.
-# Input '1' maintains the odd state.
-q1 0 q0
-q1 1 q1
+# State q_odd
+# Represents having read an odd number (ending in 1).
+q_odd 0 q_even
+q_odd 1 q_odd
