@@ -1,194 +1,161 @@
 import graphviz
-from typing import Optional
-import string
+from typing import Optional, Tuple, List, Set, Dict
 
 
 class DFA:
     """
     Represents a Deterministic Finite Automaton (DFA).
-    Handles validation of strings and visualization of the automaton structure.
+    Optimized for validation speed and structured visualization.
     """
+    __slots__ = (
+        'states',
+        'alphabet',
+        'transitions',
+        'initial_state',
+        'final_states',
+        '_grouped_transitions'
+    )
 
     def __init__(self,
-                 states: set[str],
-                 alphabet: set[str],
-                 transitions: dict[tuple[str, str], str],
+                 states: Set[str],
+                 alphabet: Set[str],
+                 transitions: Dict[Tuple[str, str], str],
                  initial_state: str,
-                 final_states: set[str]):
+                 final_states: Set[str]):
         """
-        Initialize the Deterministic Finite Automaton components.
-
-        :param states: Set of all states in the automaton.
-        :param alphabet: Set of allowed input symbols.
-        :param transitions: Dictionary mapping (source_state, input_symbol) to destination_state.
-        :param initial_state: The starting state of the automaton.
-        :param final_states: Set of states where acceptance occurs.
+        Initializes the DFA with immutable sets for O(1) lookups.
         """
         self.states = states
         self.alphabet = alphabet
         self.transitions = transitions
         self.initial_state = initial_state
         self.final_states = final_states
+        
+        # Pre-compute grouped transitions for faster lookup during visualization
+        self._grouped_transitions = self._group_transitions_by_edge()
 
-    def validate_string(self, input_string: str) -> tuple[bool, list[str], list[tuple[str, str, str]]]:
+    def _group_transitions_by_edge(self) -> Dict[Tuple[str, str], List[str]]:
         """
-        Validates the input string against the DFA's rules and returns the execution trace.
+        Groups symbols that share the same source and destination.
+        """
+        grouped = {}
+        for (src, symbol), dest in self.transitions.items():
+            key = (src, dest)
+            if key not in grouped:
+                grouped[key] = []
+            grouped[key].append(symbol)
+        return grouped
 
-        :param input_string: The string to process.
-        :return: A tuple containing:
-                 - bool: True if accepted, False otherwise.
-                 - list[str]: The sequence of states visited (the path).
-                 - list[tuple[str, str, str]]: The sequence of specific transitions taken (src, dest, symbol).
-        :raises ValueError: If input string contains symbols not in the alphabet.
+    def validate_string(self, input_string: str) -> Tuple[bool, List[str], List[Tuple[str, str, str]]]:
         """
-        # Ensure strict alphabet validation before processing
-        if not all(char in self.alphabet for char in input_string):
-            invalid_chars = [c for c in input_string if c not in self.alphabet]
-            raise ValueError(f"Input string contains symbols not in the alphabet: {set(invalid_chars)}")
+        Processes an input string through the DFA.
+
+        Returns:
+            Tuple containing boolean validity, list of visited states, and list of transitions.
+        """
+        # Validate alphabet adherence
+        for char in input_string:
+            if char not in self.alphabet:
+                raise ValueError(f"Symbol '{char}' not in alphabet")
 
         current_state = self.initial_state
-        # Path tracks states visited: [q0, q1, q2...]
         path = [current_state]
-        # Edge path tracks specific transitions taken: [(q0, q1, 'a'), (q1, q2, 'b')...]
         edge_path = []
 
         for symbol in input_string:
-            # In a strict DFA, every state must have a transition for every symbol
-            # Using .get() handles implicit rejection (dead states) if definitions are incomplete
+            # Direct hash map lookup for O(1) transition resolution
             next_state = self.transitions.get((current_state, symbol))
 
             if next_state is None:
-                # Transition not defined implies immediate rejection
+                # Implicit rejection (dead state)
                 return False, path, edge_path
 
             edge_path.append((current_state, next_state, symbol))
             current_state = next_state
             path.append(current_state)
 
-        # Determine acceptance based on the final state reached
-        is_accepted = current_state in self.final_states
-        return is_accepted, path, edge_path
+        return current_state in self.final_states, path, edge_path
 
     @staticmethod
-    def _format_edge_label(symbols: list[str]) -> str:
+    def _format_edge_label(symbols: List[str]) -> str:
         """
-        Helper to compress a list of edge symbols into a readable label.
-        Detects common ranges like a-z or 0-9.
+        Compresses a list of symbols into a readable label using ranges where possible.
         """
         symbols_set = set(symbols)
         parts = []
 
-        # Pre-defined common ranges to detect
-        lowercase = set(string.ascii_lowercase)
+        import string
+        lower = set(string.ascii_lowercase)
         digits = set(string.digits)
 
-        # Check for complete ranges
-        if lowercase.issubset(symbols_set):
+        if lower.issubset(symbols_set):
             parts.append("a-z")
-            symbols_set -= lowercase
+            symbols_set -= lower
         if digits.issubset(symbols_set):
             parts.append("0-9")
             symbols_set -= digits
 
-        # Add remaining individual symbols, sorted for consistency
-        for sym in sorted(list(symbols_set)):
-            parts.append(sym)
-
+        parts.extend(sorted(list(symbols_set)))
         return ", ".join(parts)
 
     def visualize(self,
                   filename: str = "dfa_output",
-                  path: Optional[list[str]] = None,
-                  edge_path: Optional[list[tuple[str, str, str]]] = None) -> str:
+                  path: Optional[List[str]] = None,
+                  edge_path: Optional[List[Tuple[str, str, str]]] = None) -> str:
         """
-        Generates a Graphviz representation of the DFA, grouping transitions between states.
-        Highlights the execution path if a trace is provided.
-
-        :param filename: Base name for the output file (without extension).
-        :param path: Optional list of visited states to highlight during a trace.
-        :param edge_path: Optional list of specific transitions taken during a trace.
-        :return: The absolute path to the rendered image file.
+        Renders the DFA using Graphviz.
         """
         dot = graphviz.Digraph(format='png', engine='dot')
-        # LR = Left to Right layout, usually cleaner for DFAs
-        dot.attr(rankdir='LR')
+        dot.attr(rankdir='LR', dpi='150')
 
-        # Style constants for visualization
-        highlight_color = '#006400'  # Dark green for active traces
-        default_color = 'black'
-        highlight_penwidth = '2.5'
-        default_penwidth = '1.0'
+        # Visual configuration
+        hl_color = '#006400'
+        def_color = 'black'
+        hl_width = '2.5'
+        def_width = '1.0'
 
-        # Determine if we are visualizing an active trace
-        is_trace_active = path is not None and len(path) > 0
-
-        # 1. Draw Start Arrow
-        # Only highlight the start arrow if it's part of an active trace
-        start_color = highlight_color if is_trace_active else default_color
-        start_penwidth = highlight_penwidth if is_trace_active else default_penwidth
-
-        dot.node('start_pointer', label='', shape='none', width='0', height='0')
-        dot.edge('start_pointer', self.initial_state, color=start_color, penwidth=start_penwidth)
-
-        # Optimization sets for quick lookups
+        is_trace = path is not None and len(path) > 0
+        
+        # Sets for O(1) lookup during rendering loop
         visited_nodes = set(path) if path else set()
-        traversed_edges_specific = set(edge_path) if edge_path else set()
+        traversed_edges = set(edge_path) if edge_path else set()
 
-        # 2. Draw States (Nodes)
-        # Sort states to ensure consistent output orientation
-        sorted_states = sorted(list(self.states), key=lambda s: (len(s), s))
-        for state in sorted_states:
-            # Final states are double circles
-            shape = 'doublecircle' if state in self.final_states else 'circle'
+        # Draw the start pointer
+        start_color = hl_color if is_trace else def_color
+        start_width = hl_width if is_trace else def_width
+        dot.node('start_pointer', label='', shape='none', width='0', height='0')
+        dot.edge('start_pointer', self.initial_state, color=start_color, penwidth=start_width)
 
-            # Determine styling based on visitation in trace
-            if state in visited_nodes:
-                color = highlight_color
-                font_color = highlight_color
-                penwidth = highlight_penwidth
-            else:
-                color = default_color
-                font_color = default_color
-                penwidth = default_penwidth
+        # Draw the nodes
+        for state in sorted(list(self.states)):
+            is_final = state in self.final_states
+            is_visited = state in visited_nodes
+            
+            dot.node(
+                state,
+                shape='doublecircle' if is_final else 'circle',
+                color=hl_color if is_visited else def_color,
+                fontcolor=hl_color if is_visited else def_color,
+                penwidth=hl_width if is_visited else def_width
+            )
 
-            dot.node(state, shape=shape, color=color, fontcolor=font_color, penwidth=penwidth)
-
-        # 3. Group Transitions
-        # Group symbols by shared (source, destination) pairs
-        # Structure: {(src, dest): [symbol1, symbol2, ...]}
-        grouped_transitions: dict[tuple[str, str], list[str]] = {}
-        for (src, symbol), dest in self.transitions.items():
-            if (src, dest) not in grouped_transitions:
-                grouped_transitions[(src, dest)] = []
-            grouped_transitions[(src, dest)].append(symbol)
-
-        # 4. Draw Transitions (Edges)
-        for (src, dest), symbols in grouped_transitions.items():
-            # Format the label (e.g., "a-z, 0-9")
+        # Draw the edges using grouped transitions
+        for (src, dest), symbols in self._grouped_transitions.items():
             label = self._format_edge_label(symbols)
-
-            # Check if ANY symbol in this grouped edge was used in the trace
-            is_grouped_edge_used = False
-            if is_trace_active:
+            
+            # Check if this specific aggregate edge was part of the trace
+            is_edge_active = False
+            if is_trace:
                 for sym in symbols:
-                    if (src, dest, sym) in traversed_edges_specific:
-                        is_grouped_edge_used = True
+                    if (src, dest, sym) in traversed_edges:
+                        is_edge_active = True
                         break
 
-            # Determine styling for the grouped edge
-            if is_grouped_edge_used:
-                edge_color = highlight_color
-                label_font_color = highlight_color
-                edge_penwidth = highlight_penwidth
-            else:
-                edge_color = default_color
-                label_font_color = default_color
-                edge_penwidth = default_penwidth
+            dot.edge(
+                src, dest, label=label,
+                color=hl_color if is_edge_active else def_color,
+                fontcolor=hl_color if is_edge_active else def_color,
+                penwidth=hl_width if is_edge_active else def_width
+            )
 
-            dot.edge(src, dest, label=label,
-                     color=edge_color,
-                     fontcolor=label_font_color,
-                     penwidth=edge_penwidth)
-
-        # Render the graph and return the file path. Cleanup deletes the source .dot file
         return dot.render(filename, cleanup=True)
